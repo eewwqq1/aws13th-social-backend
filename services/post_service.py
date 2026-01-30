@@ -3,7 +3,7 @@ from typing import Optional
 import uuid
 from fastapi import HTTPException
 from models.post import Post, PostQuery, PostPublic
-from repositories.posts_repo import get_post_by_id, get_all_posts
+from repositories.posts_repo import get_post_by_post_id, get_all_posts
 
 ALLOWED_POST_FIELDS = frozenset({'title', 'content'})
 
@@ -40,7 +40,7 @@ def write_posts(db, data: Post, current_user: dict):
 def get_user_post(db, post_id: str) -> dict:
     try:
         with db.cursor() as cursor:
-            user_post = get_post_by_id(db, post_id)
+            user_post = get_post_by_post_id(db, post_id)
 
             if not user_post:
                 raise HTTPException(status_code=404, detail="해당 게시물을 찾을수 없습니다.")
@@ -64,7 +64,7 @@ def get_user_post(db, post_id: str) -> dict:
 def update_my_post(db, post_id:str, post_dict: dict, current_user: dict) -> dict:
     try:
         with db.cursor() as cursor:
-            user_post = get_post_by_id(db, post_id)
+            user_post = get_post_by_post_id(db, post_id)
             if user_post is None:
                 raise HTTPException(status_code=404, detail="해당 게시물을 찾을수 없습니다")
             if user_post["user_id"] != current_user["user_id"]:
@@ -82,7 +82,6 @@ def update_my_post(db, post_id:str, post_dict: dict, current_user: dict) -> dict
             select_sql = "SELECT * FROM posts WHERE post_id = %s"
             cursor.execute(select_sql, (post_id,))
             updated_post_row = cursor.fetchone()
-            print(updated_post_row)
             if not updated_post_row:
                 raise HTTPException(status_code=404, detail="해당 게시물을 찾을수 없습니다.")
 
@@ -98,20 +97,35 @@ def update_my_post(db, post_id:str, post_dict: dict, current_user: dict) -> dict
         print(f"Service Error: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-def delete_my_post(db, post_id:str,current_user: dict) -> None:
+def delete_my_post(db, post_id:str, current_user: dict) -> None:
+    try:
+        with db.cursor() as cursor:
+            user_post = get_post_by_post_id(db, post_id)
+            if not user_post:
+                 raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+            if user_post["user_id"] != current_user["user_id"]:
+                raise HTTPException(status_code=403, detail="본인의 게시물만 삭제할 수 있습니다." )
+            delete_time = datetime.now(timezone.utc)
+            update_sql = "UPDATE posts SET is_activate=0, deleted_at = %s WHERE post_id = %s"
+            cursor.execute(update_sql, (delete_time, post_id,))
 
-    user_post = get_post_by_id(db, post_id)
-    if not user_post:
-        raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
-    if user_post["user_id"] != current_user["user_id"]:
-        raise HTTPException(
-            status_code=403,
-            detail="본인의 게시물만 삭제할 수 있습니다."
-        )
-    # updated_posts = [p for p in user_post if p["post_id"] != post_id]
-    with db.cursor() as cursor:
-        cursor.execute("DELETE FROM posts WHERE post_id = %s", (post_id,))
+            deleted_row = cursor.rowcount
+            if deleted_row == 0:
+             raise HTTPException(status_code=404, detail="삭제가 이루어지지 않았습니다")
+
         db.commit()
+
+    except HTTPException:
+        db.rollback()
+        raise
+
+    except Exception as e:
+        db.rollback()
+        print(f"Service Error: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+
 
 def query_post(db, param: PostQuery, get_optional_user: Optional[dict]) -> dict:
     data = get_all_posts(db)

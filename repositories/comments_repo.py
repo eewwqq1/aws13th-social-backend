@@ -14,7 +14,7 @@ def get_all_comments(db):
        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-def get_comment_by_id(db,comment_id):
+def get_comment_by_comment_id(db, comment_id):
     try:
         with db.cursor() as cursor:
             cursor.execute("SELECT * FROM comments WHERE comment_id = %s", (comment_id,))

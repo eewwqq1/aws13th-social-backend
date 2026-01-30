@@ -5,7 +5,7 @@ from jose import jwt, JWTError
 from starlette.requests import Request
 from core.config import jwt_settings
 from core.db_connection import get_db
-from repositories.user_repo import get_user_by_id
+from repositories.user_repo import get_user_by_user_id
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -20,7 +20,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db=Depends(get_db)):
         if user_id is None:
             raise HTTPException(status_code=401, detail="유효하지 않은 토큰 페이로드")
 
-        user = get_user_by_id(db, user_id)
+        user = get_user_by_user_id(db, user_id)
         if user is None:
             raise HTTPException(status_code=401, detail="사용자를 찾을 수 없습니다")
         return user

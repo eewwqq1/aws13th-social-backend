@@ -2,16 +2,18 @@ from datetime import datetime, timezone
 from typing import Optional
 import uuid
 from fastapi import HTTPException
-from models.comment import Comment, CommentResponse
-from repositories.comments_repo import get_all_comments, get_comment_by_id
-from repositories.posts_repo import get_post_by_id
+from sqlalchemy import result_tuple
 
+from models.comment import Comment, CommentResponse
+from repositories.comments_repo import get_all_comments, get_comment_by_comment_id
+from repositories.posts_repo import get_post_by_post_id
+
+ALLOWED_COMMENT_FIELDS = frozenset({'content'})
 
 def write_comments(db, post_id:str, data: Comment, current_user : dict):
     try:
         with db.cursor() as cursor:
-
-            posts = get_post_by_id(db, post_id)
+            posts = get_post_by_post_id(db, post_id)
             if not posts :
                 raise HTTPException(400, "Post ID not valid")
             comment_created_at = datetime.now(timezone.utc)
@@ -41,7 +43,6 @@ def write_comments(db, post_id:str, data: Comment, current_user : dict):
         print(f"Service Error: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-
 def get_usr_comments(db, post_id:str, get_optional_user: Optional[dict] = None):
     all_data = get_all_comments(db)
     post_comments = [c for c in all_data if c["post_id"] == post_id]
@@ -57,23 +58,46 @@ def get_usr_comments(db, post_id:str, get_optional_user: Optional[dict] = None):
     return post_comments
 
 def update_user_comments(db,comment_id:str, data: Comment, current_user : dict):
-    all_data = get_comment_by_id(db, comment_id)
-    if all_data is None:
-        raise HTTPException(status_code=404, detail="해당 게시물을 찾을수 없습니다")
-    if all_data["user_id"] != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail=" 댓글을 수정할 권한이 없습니다.")
+    try:
+        with db.cursor() as cursor:
+            user_comment = get_comment_by_comment_id(db, comment_id)
+            if user_comment is None:
+                raise HTTPException(status_code=404, detail="해당 댓글을 찾을수 없습니다")
+            if user_comment["user_id"] != current_user["user_id"]:
+                raise HTTPException(status_code=403, detail=" 댓글을 수정할 권한이 없습니다.")
 
-    with db.cursor() as cursor:
-        cursor.execute("UPDATE comments SET content = %s WHERE comment_id = %s", (data.content, comment_id))
+            data_dict = data.model_dump(mode="json")
+            safe_fields = [k for k in data_dict.keys() if k in ALLOWED_COMMENT_FIELDS]
+            if not safe_fields:
+                raise HTTPException(status_code=401, detail="유효한 필드가 아닙니다.")
+            sql_fields = ",".join([f"`{key}` = %s" for key in safe_fields])
+            update_sql = "UPDATE comments SET " + sql_fields + " WHERE comment_id = %s"
+            values = [data_dict[k] for k in safe_fields]
+            values.append(comment_id)
+            cursor.execute(update_sql, tuple(values))
+
+            select_sql = "SELECT * FROM comments WHERE comment_id = %s"
+            cursor.execute(select_sql, (comment_id,))
+            updated_comment_row = cursor.fetchone()
+            if not updated_comment_row:
+                raise HTTPException(status_code=404, detail="해당 댓글을 찾을수 없습니다.")
+
         db.commit()
+        return updated_comment_row
 
-    index = all_data.index(all_data)
-    all_data[index]["content"] = data.content
-    return all_data[index]
+    except HTTPException:
+        db.rollback()
+        raise
+
+    except Exception as e:
+        db.rollback()
+        print(f"Service Error: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
 
 
 def delete_user_comments(db, comment_id:str, current_user : dict ):
-    comments = get_comment_by_id(db, comment_id)
+    comments = get_comment_by_comment_id(db, comment_id)
     if not comments:
         raise HTTPException(status_code=404, detail="코멘트를 찾을 수 없습니다.")
 

@@ -2,6 +2,8 @@ from typing import Optional, Annotated
 from fastapi import Form
 from pydantic import BaseModel, EmailStr, Field, HttpUrl, model_validator
 
+
+
 class UserSignUp(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=50)
@@ -24,12 +26,6 @@ class UserUpdate(BaseModel):
     password: Optional[str] = Field(default=None, min_length=8, max_length=50)
     nickname: Optional[str] = Field(default=None, min_length=2, max_length=20)
     profile_image_url: Optional[HttpUrl] = None
-#
-# class LoginUserResponse(BaseModel):
-#     user_id :str
-#     email: EmailStr
-#     nickname: str
-#     profile_image_url: HttpUrl | None = None
 
 
 def signup_form_reader(

@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 from models.user import UserPublic
-from repositories.user_repo import get_user_by_id
+from repositories.user_repo import get_user_by_user_id
 from services.auth_service import get_password_hash
 from datetime import datetime, timezone
 
@@ -12,7 +12,7 @@ def get_my_profile(current_user: dict) -> dict:
     return current_user
 
 def get_user_profile(db,user_id: str) -> dict:
-    users = get_user_by_id(db, user_id)
+    users = get_user_by_user_id(db, user_id)
     if not users:
         raise HTTPException(status_code=404, detail="해당 사용자를 찾을 수 없습니다")
     return users
@@ -29,14 +29,14 @@ def update_my_profile(db, current_user: dict, patch_data: dict) -> dict:
                if cursor.fetchone():
                    raise HTTPException(status_code=409, detail="이미 사용중인 이메일 입니다.")
 
-    password = patch_data.get("password")
-    if password : patch_data["password"] = get_password_hash(password)
+    if "password" in patch_data :
+        patch_data["password"] = get_password_hash(patch_data["password"])
 
     try:
         with db.cursor() as cursor:
             safe_fields= [k for k in patch_data.keys() if k in ALLOWED_USER_FIELDS]
             if not safe_fields:
-                raise HTTPException(status_code=401, detail="유효한 필드가 아닙니다.")
+                raise HTTPException(status_code=400, detail="유효한 필드가 아닙니다.")
 
             sql_fields = ",".join([f"`{key}` = %s"for key in safe_fields])
             update_sql = "UPDATE users SET " + sql_fields + " WHERE user_id = %s"
@@ -79,7 +79,7 @@ def delete_my_account(db,current_user: dict) -> None:
             # posts, comments, likes 테이블 is_actives 일괄 처리
             # dbms가 아닌 서비스 코드에서 처리 함
             for table in TABLES:
-                sql= "UPDATE " + table +" SET is_activate = 0, deleted_at = %s WHERE user_id = %s"
+                sql= "UPDATE " + table +" SET is_activate = 0, deleted_at = %s WHERE user_id = %s AND is_activate = 1"
                 cursor.execute(sql, (delete_time, current_user["user_id"]))
 
             if user_deleted == 0:

@@ -7,6 +7,8 @@ from repositories.posts_repo import get_post_by_post_id, get_all_posts
 
 ALLOWED_POST_FIELDS = frozenset({'title', 'content'})
 
+ALLOWED_POST_FIELDS = frozenset({'title', 'content'})
+
 def write_posts(db, data: Post, current_user: dict):
     try:
         with db.cursor() as cursor:

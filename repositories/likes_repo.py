@@ -11,6 +11,8 @@ def get_all_likes(db):
        print(f"Service Error: {e}")
        raise HTTPException(status_code=500, detail="Internal Server Error")
 
+
+
 def get_like_by_like_id(db, like_id):
     try:
         with db.cursor() as cursor:

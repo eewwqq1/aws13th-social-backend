@@ -41,7 +41,7 @@ def update_comments(
 ):
     return update_user_comments(db, comment_id, comment_data, current_user)
 
-@router.delete("/comments/{comment_id}", response_model=CommentResponse)
+@router.delete("/comments/{comment_id}")
 def delete_comments(
         comment_id: str,
         current_user: Annotated[dict, Depends(get_current_user)],

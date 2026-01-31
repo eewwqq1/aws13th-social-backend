@@ -45,7 +45,7 @@ async def delete_post(
         current_user: Annotated[dict, Depends(get_current_user)],
         db = Depends(get_db)
 ):
-    delete_my_post(db, post_id,current_user)
+    delete_my_post(db, post_id, current_user)
     return {"post_id": "삭제 되었습니다."}
 
 
